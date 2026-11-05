@@ -1,0 +1,152 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  VET
+  TUTOR
+}
+
+enum Species {
+  CAO
+  GATO
+  AVE
+  ROEDOR
+  REPTIL
+  EQUINO
+  OUTRO
+}
+
+enum Sex {
+  MACHO
+  FEMEA
+}
+
+enum PreventionKind {
+  VACINA
+  VERMIFUGO
+  ANTIPARASITARIO
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role
+  crmv         String?
+  createdAt    DateTime @default(now())
+
+  // Veterinário: tutores e consultas que registrou
+  tutorsOwned   Tutor[]        @relation("TutorOwner")
+  consultations Consultation[]
+  preventions   Prevention[]
+
+  // Tutor: perfil vinculado
+  tutorProfile Tutor? @relation("TutorAccount")
+}
+
+model Tutor {
+  id         String   @id @default(cuid())
+  name       String
+  email      String?
+  phone      String?
+  cpf        String?
+  inviteCode String   @unique @default(cuid())
+  createdAt  DateTime @default(now())
+
+  ownerVetId String
+  ownerVet   User   @relation("TutorOwner", fields: [ownerVetId], references: [id])
+
+  userId String? @unique
+  user   User?   @relation("TutorAccount", fields: [userId], references: [id])
+
+  animals Animal[]
+
+  @@index([ownerVetId])
+}
+
+model Animal {
+  id        String    @id @default(cuid())
+  name      String
+  species   Species
+  breed     String?
+  sex       Sex
+  neutered  Boolean   @default(false)
+  birthDate DateTime?
+  color     String?
+  microchip String?
+  allergies String?
+  notes     String?
+  createdAt DateTime  @default(now())
+
+  tutorId String
+  tutor   Tutor  @relation(fields: [tutorId], references: [id], onDelete: Cascade)
+
+  consultations Consultation[]
+  preventions   Prevention[]
+
+  @@index([tutorId])
+}
+
+model Consultation {
+  id           String   @id @default(cuid())
+  date         DateTime @default(now())
+  reason       String
+  anamnesis    String?
+  weightKg     Decimal? @db.Decimal(6, 2)
+  temperatureC Decimal? @db.Decimal(4, 1)
+  heartRate    Int?
+  respRate     Int?
+  physicalExam String?
+  diagnosis    String?
+  treatment    String?
+  returnDate   DateTime?
+  // Visível apenas para veterinários
+  privateNotes String?
+  createdAt    DateTime @default(now())
+
+  animalId String
+  animal   Animal @relation(fields: [animalId], references: [id], onDelete: Cascade)
+  vetId    String
+  vet      User   @relation(fields: [vetId], references: [id])
+
+  prescriptions Prescription[]
+
+  @@index([animalId, date])
+}
+
+model Prescription {
+  id             String @id @default(cuid())
+  medication     String
+  dose           String
+  frequency      String
+  duration       String?
+  instructions   String?
+  consultationId String
+  consultation   Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+}
+
+model Prevention {
+  id        String         @id @default(cuid())
+  kind      PreventionKind
+  name      String
+  appliedAt DateTime
+  nextDueAt DateTime?
+  batch     String?
+  notes     String?
+  createdAt DateTime       @default(now())
+
+  animalId String
+  animal   Animal @relation(fields: [animalId], references: [id], onDelete: Cascade)
+  vetId    String
+  vet      User   @relation(fields: [vetId], references: [id])
+
+  @@index([animalId, appliedAt])
+  @@index([nextDueAt])
+}
